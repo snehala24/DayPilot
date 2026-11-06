@@ -358,6 +358,9 @@ class Proposal(Base):
     )
     result: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     recovery_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )
@@ -509,6 +512,9 @@ class AuditEvent(Base):
     payload: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     result: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     recovery_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )

@@ -226,7 +226,8 @@ def test_seeded_conflict_insufficient_time_and_alternatives_feasibility(
         if alt["action"] == "reschedule_next_day":
             assert "proposed_start" in alt
         elif alt["action"] == "split_task":
-            assert alt["part_duration_minutes"] == 90
+            assert alt["total_duration_minutes"] == 180
+            assert sum(p["duration_minutes"] for p in alt["parts"]) == 180
 
 
 def test_seeded_conflict_deadline_missed(test_date, user_tz):

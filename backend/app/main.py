@@ -47,10 +47,12 @@ app.add_middleware(
 from app.api.commitments import router as commitments_router
 from app.api.inputs import router as inputs_router
 from app.api.plans import router as plans_router
+from app.api.proposals import router as proposals_router
 
 app.include_router(inputs_router, prefix=settings.API_V1_STR)
 app.include_router(commitments_router, prefix=settings.API_V1_STR)
 app.include_router(plans_router, prefix=settings.API_V1_STR)
+app.include_router(proposals_router, prefix=settings.API_V1_STR)
 
 
 @app.get("/health", tags=["System"])

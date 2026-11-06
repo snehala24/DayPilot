@@ -418,9 +418,7 @@ class DayPlanner:
 
         # Check if deadline is violated
         if c_due and c_due < working_hours_slot.ends_at:
-            slots_before_deadline = [
-                s for s in free_slots if s.starts_at < c_due
-            ]
+            slots_before_deadline = [s for s in free_slots if s.starts_at < c_due]
             if not slots_before_deadline or all(
                 s.duration_minutes < duration for s in slots_before_deadline
             ):
@@ -480,20 +478,28 @@ class DayPlanner:
                 "title": f"Move to tomorrow at {self.working_hours_start}",
                 "proposed_start": next_day_start.isoformat(),
                 "proposed_duration": duration,
-                "description": "Schedule in the first available slot on the next business day.",
+                "requires_approval": True,
+                "description": "Create a proposal to schedule in the first available slot on the next business day (requires user approval).",
             }
         )
 
-        # Alternative 2: Split into smaller blocks if duration > 30m
+        # Alternative 2: Split into smaller blocks if duration >= 40m, strictly preserving total effort
         if duration >= 40:
-            half = duration // 2
+            part_1 = duration // 2
+            part_2 = (
+                duration - part_1
+            )  # Exact sum preservation: part_1 + part_2 == duration
             alternatives.append(
                 {
                     "action": "split_task",
-                    "title": f"Split into two {half}-minute blocks",
-                    "part_duration_minutes": half,
-                    "parts_count": 2,
-                    "description": f"Divide '{commit.title}' into two {half}-minute segments to fit into fragmented gaps.",
+                    "title": f"Split into {part_1}m and {part_2}m blocks",
+                    "parts": [
+                        {"part_index": 1, "duration_minutes": part_1},
+                        {"part_index": 2, "duration_minutes": part_2},
+                    ],
+                    "total_duration_minutes": duration,
+                    "requires_approval": True,
+                    "description": f"Create proposal to divide '{commit.title}' into {part_1}m and {part_2}m segments (total {duration}m, requires user approval).",
                 }
             )
 
@@ -506,7 +512,8 @@ class DayPlanner:
                     "action": "extend_deadline",
                     "title": "Extend deadline by 24 hours",
                     "proposed_due_at": extended_due.isoformat(),
-                    "description": "Extend deadline to allow placement during the next open window.",
+                    "requires_approval": True,
+                    "description": "Create proposal to extend deadline by 24 hours (requires user approval).",
                 }
             )
         else:
@@ -515,7 +522,8 @@ class DayPlanner:
                     "action": "deprioritize",
                     "title": "Lower priority to Priority 4",
                     "proposed_priority": 4,
-                    "description": "Plan higher-priority commitments first and reschedule this when free.",
+                    "requires_approval": True,
+                    "description": "Create proposal to lower priority to 4 and reschedule when free (requires user approval).",
                 }
             )
 
