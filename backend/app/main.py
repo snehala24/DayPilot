@@ -14,15 +14,24 @@ logging.basicConfig(
 logger = logging.getLogger("daypilot")
 
 
+from app.reminders.scheduler import (
+    shutdown_reminder_scheduler,
+    start_reminder_scheduler,
+)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Initializing DayPilot backend...")
     if settings.ENVIRONMENT != "test":
         Base.metadata.create_all(bind=engine)
         seed_database()
+        start_reminder_scheduler()
     logger.info("DayPilot backend initialized.")
     yield
     logger.info("Shutting down DayPilot backend...")
+    if settings.ENVIRONMENT != "test":
+        shutdown_reminder_scheduler()
 
 
 app = FastAPI(
@@ -48,11 +57,13 @@ from app.api.commitments import router as commitments_router
 from app.api.inputs import router as inputs_router
 from app.api.plans import router as plans_router
 from app.api.proposals import router as proposals_router
+from app.api.reminders import router as reminders_router
 
 app.include_router(inputs_router, prefix=settings.API_V1_STR)
 app.include_router(commitments_router, prefix=settings.API_V1_STR)
 app.include_router(plans_router, prefix=settings.API_V1_STR)
 app.include_router(proposals_router, prefix=settings.API_V1_STR)
+app.include_router(reminders_router, prefix=settings.API_V1_STR)
 
 
 @app.get("/health", tags=["System"])

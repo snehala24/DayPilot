@@ -28,7 +28,7 @@ The PostgreSQL schema makes commitments, proposals and audit events first-class 
 ## Action tables
 - **proposals**: `id`, `user_id`, `commitment_id`, `kind` (`calendar_create`, `calendar_update`, `calendar_delete`, `send_message`, `reschedule`), `payload` (jsonb), `reason`, `status` (`pending`, `approved`, `rejected`, `executed`, `verified`, `failed`, `expired`), `idempotency_key`, `result` (jsonb), `recovery_status`, `expires_at`
 - **approvals**: `id`, `proposal_id`, `decision` (`approved`, `rejected`), `edited_payload` (jsonb), `decided_by`, `decided_at`, `reason`
-- **reminders**: `id`, `commitment_id`, `due_at`, `channel`, `status` (`scheduled`, `retrying`, `delivered`, `needs_attention`, `cancelled`), `attempt_count`, `idempotency_key`
+- **reminders**: `id`, `commitment_id`, `due_at`, `channel`, `status` (`scheduled`, `claimed`, `retrying`, `delivered`, `needs_attention`, `cancelled`), `attempt_count`, `idempotency_key`
 - **delivery_attempts**: `id`, `reminder_id`, `attempted_at`, `outcome`, `error`
 - **audit_events**: `id`, `user_id`, `entity_type`, `entity_id`, `action`, `actor` (`person`, `agent`, `system`), `payload` (jsonb), `result` (jsonb), `recovery_status`, `created_at`
 

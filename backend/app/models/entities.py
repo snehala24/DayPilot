@@ -457,7 +457,7 @@ class Reminder(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "status IN ('scheduled', 'retrying', 'delivered', 'needs_attention', 'cancelled')",
+            "status IN ('scheduled', 'claimed', 'retrying', 'delivered', 'needs_attention', 'cancelled')",
             name="chk_reminder_status",
         ),
         Index("idx_reminders_due_status", "due_at", "status"),
