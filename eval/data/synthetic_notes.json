@@ -11,7 +11,7 @@
         "due_date": "2026-11-15",
         "due_time": "17:00",
         "priority": 2,
-        "owner": "Priya",
+        "owner": null,
         "dependencies": []
       }
     ],
@@ -28,14 +28,14 @@
       {
         "title": "Call Rahul regarding the contract revisions",
         "due_date": "2026-11-07",
-        "due_time": "09:00",
+        "due_time": null,
         "priority": 2,
-        "owner": "Rahul",
+        "owner": null,
         "dependencies": []
       }
     ],
-    "expected_ambiguity_fields": [],
-    "expected_questions_count": 0
+    "expected_ambiguity_fields": ["due_time"],
+    "expected_questions_count": 1
   },
   {
     "id": 3,
@@ -95,7 +95,7 @@
         "due_date": "2026-11-06",
         "due_time": "17:00",
         "priority": 2,
-        "owner": "Rahul",
+        "owner": null,
         "dependencies": []
       },
       {

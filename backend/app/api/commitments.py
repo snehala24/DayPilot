@@ -16,6 +16,49 @@ from app.models.entities import AuditEvent, Commitment, CommitmentDependency, No
 router = APIRouter(prefix="/commitments", tags=["Commitments"])
 
 
+def check_for_dependency_cycles(
+    new_dependencies: list[tuple[uuid.UUID, uuid.UUID]],
+    existing_dependencies: list[tuple[uuid.UUID, uuid.UUID]],
+) -> None:
+    """Build directed graph and detect cycles using 3-state DFS.
+
+    Raises HTTPException 400 if a self-dependency or circular dependency is detected.
+    """
+    from collections import defaultdict
+
+    adj = defaultdict(set)
+    nodes = set()
+
+    for u, v in existing_dependencies + new_dependencies:
+        if u == v:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Self-dependency is not permitted.",
+            )
+        adj[u].add(v)
+        nodes.add(u)
+        nodes.add(v)
+
+    visited = {}  # 1: visiting (in recursion stack), 2: fully visited
+
+    def dfs(node: uuid.UUID) -> bool:
+        visited[node] = 1
+        for neighbor in adj[node]:
+            if visited.get(neighbor) == 1:
+                return True
+            if visited.get(neighbor) != 2 and dfs(neighbor):
+                return True
+        visited[node] = 2
+        return False
+
+    for node in nodes:
+        if visited.get(node) != 2 and dfs(node):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Circular dependency detected in commitment dependencies.",
+            )
+
+
 @router.post(
     "/confirm",
     response_model=ConfirmCommitmentsResponse,
@@ -144,19 +187,39 @@ def confirm_commitments(
 
     db.flush()
 
-    # 5. Link dependencies
+    # 5. Link dependencies with cycle validation
+    new_deps = []
     for idx, candidate in enumerate(payload.commitments):
         current_commit = saved_commitments[idx]
         for dep_title in candidate.dependencies:
             dep_clean = dep_title.strip().lower()
             if dep_clean in title_to_commitment:
                 dep_commit = title_to_commitment[dep_clean]
-                if dep_commit.id != current_commit.id:
-                    dep = CommitmentDependency(
-                        commitment_id=current_commit.id,
-                        depends_on_id=dep_commit.id,
+                if dep_commit.id == current_commit.id:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Self-dependency detected for '{current_commit.title}'.",
                     )
-                    db.add(dep)
+                new_deps.append((current_commit.id, dep_commit.id))
+
+    # Fetch existing dependencies for cycle check
+    existing_deps_raw = (
+        db.query(CommitmentDependency.commitment_id, CommitmentDependency.depends_on_id)
+        .join(Commitment, Commitment.id == CommitmentDependency.commitment_id)
+        .filter(Commitment.user_id == user.id)
+        .all()
+    )
+    existing_deps = [(row[0], row[1]) for row in existing_deps_raw]
+
+    # Validate against circular dependencies
+    check_for_dependency_cycles(new_deps, existing_deps)
+
+    for comm_id, dep_id in new_deps:
+        dep = CommitmentDependency(
+            commitment_id=comm_id,
+            depends_on_id=dep_id,
+        )
+        db.add(dep)
 
     # 6. Append-only Audit Event
     audit_id = uuid.uuid4()

@@ -1,5 +1,8 @@
 import uuid
 
+import pytest
+from fastapi import HTTPException
+
 from app.agent.client import FakeLLMClient
 from app.agent.schemas import (
     ConfirmCommitmentsRequest,
@@ -173,3 +176,36 @@ def test_list_and_get_commitments(db_session, seeded_db):
     detail = get_commitment(commitment_id=target_id, db=db_session)
     assert detail.id == target_id
     assert detail.title == commitments[0].title
+
+
+def test_circular_dependency_rejected_in_confirmation(db_session, seeded_db):
+    """Safety Invariant: Circular dependencies (A -> B -> A) must be rejected with 400."""
+    note = Note(
+        id=uuid.uuid4(),
+        user_id=seeded_db.query(Commitment).first().user_id,
+        raw_text="Circular task note.",
+        captured_at=db_session.query(Commitment).first().created_at,
+        created_at=db_session.query(Commitment).first().created_at,
+        updated_at=db_session.query(Commitment).first().created_at,
+    )
+    db_session.add(note)
+    db_session.commit()
+
+    cycle_req = ConfirmCommitmentsRequest(
+        note_id=note.id,
+        commitments=[
+            ConfirmedCommitmentInput(
+                title="Task Alpha",
+                dependencies=["Task Beta"],
+            ),
+            ConfirmedCommitmentInput(
+                title="Task Beta",
+                dependencies=["Task Alpha"],
+            ),
+        ],
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        confirm_commitments(payload=cycle_req, db=db_session)
+    assert exc_info.value.status_code == 400
+    assert "circular dependency" in exc_info.value.detail.lower()
