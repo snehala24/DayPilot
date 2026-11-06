@@ -1,0 +1,71 @@
+import logging
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.config import settings
+from app.models.database import Base, engine
+from app.models.seed import seed_database
+
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger("daypilot")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Initializing DayPilot backend...")
+    if settings.ENVIRONMENT != "test":
+        Base.metadata.create_all(bind=engine)
+        seed_database()
+    logger.info("DayPilot backend initialized.")
+    yield
+    logger.info("Shutting down DayPilot backend...")
+
+
+app = FastAPI(
+    title="DayPilot API",
+    description=(
+        "Personal admin agent that turns messy requests into tracked commitments, "
+        "plans around fixed events, and never writes to a calendar or sends a message without approval."
+    ),
+    version="0.1.0",
+    lifespan=lifespan,
+)
+
+# CORS Middleware for Next.js frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.get("/health", tags=["System"])
+def health_check():
+    return {
+        "status": "healthy",
+        "service": settings.PROJECT_NAME,
+        "environment": settings.ENVIRONMENT,
+        "database": "connected",
+    }
+
+
+@app.get("/", tags=["System"])
+def root():
+    return {
+        "name": "DayPilot API",
+        "version": "0.1.0",
+        "docs": "/docs",
+        "principles": [
+            "Proposal before action",
+            "Show the source",
+            "Conflicts are visible, never silent",
+            "Status is honest",
+            "Calm by default",
+        ],
+    }
