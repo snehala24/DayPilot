@@ -53,6 +53,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from app.api.audit import router as audit_router
 from app.api.commitments import router as commitments_router
 from app.api.inputs import router as inputs_router
 from app.api.plans import router as plans_router
@@ -64,6 +65,7 @@ app.include_router(commitments_router, prefix=settings.API_V1_STR)
 app.include_router(plans_router, prefix=settings.API_V1_STR)
 app.include_router(proposals_router, prefix=settings.API_V1_STR)
 app.include_router(reminders_router, prefix=settings.API_V1_STR)
+app.include_router(audit_router, prefix=settings.API_V1_STR)
 
 
 @app.get("/health", tags=["System"])
