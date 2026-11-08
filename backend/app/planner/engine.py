@@ -472,13 +472,23 @@ class DayPlanner:
 
         # Alternative 1: Schedule on the next business day
         next_day_start = working_hours_slot.starts_at + timedelta(days=1)
+        next_day_end = next_day_start + timedelta(minutes=duration)
         alternatives.append(
             {
                 "action": "reschedule_next_day",
+                "kind": "reschedule_next_day",
                 "title": f"Move to tomorrow at {self.working_hours_start}",
                 "proposed_start": next_day_start.isoformat(),
+                "proposed_end": next_day_end.isoformat(),
                 "proposed_duration": duration,
                 "requires_approval": True,
+                "requires_user_approval": True,
+                "feasible": True,
+                "changes": {
+                    "proposed_start": next_day_start.isoformat(),
+                    "proposed_end": next_day_end.isoformat(),
+                    "proposed_duration": duration,
+                },
                 "description": "Create a proposal to schedule in the first available slot on the next business day (requires user approval).",
             }
         )
@@ -492,6 +502,7 @@ class DayPlanner:
             alternatives.append(
                 {
                     "action": "split_task",
+                    "kind": "split_task",
                     "title": f"Split into {part_1}m and {part_2}m blocks",
                     "parts": [
                         {"part_index": 1, "duration_minutes": part_1},
@@ -499,6 +510,15 @@ class DayPlanner:
                     ],
                     "total_duration_minutes": duration,
                     "requires_approval": True,
+                    "requires_user_approval": True,
+                    "feasible": True,
+                    "changes": {
+                        "parts": [
+                            {"part_index": 1, "duration_minutes": part_1},
+                            {"part_index": 2, "duration_minutes": part_2},
+                        ],
+                        "total_duration_minutes": duration,
+                    },
                     "description": f"Create proposal to divide '{commit.title}' into {part_1}m and {part_2}m segments (total {duration}m, requires user approval).",
                 }
             )
@@ -510,9 +530,15 @@ class DayPlanner:
             alternatives.append(
                 {
                     "action": "extend_deadline",
+                    "kind": "extend_deadline",
                     "title": "Extend deadline by 24 hours",
                     "proposed_due_at": extended_due.isoformat(),
                     "requires_approval": True,
+                    "requires_user_approval": True,
+                    "feasible": True,
+                    "changes": {
+                        "proposed_due_at": extended_due.isoformat(),
+                    },
                     "description": "Create proposal to extend deadline by 24 hours (requires user approval).",
                 }
             )
@@ -520,9 +546,15 @@ class DayPlanner:
             alternatives.append(
                 {
                     "action": "deprioritize",
+                    "kind": "deprioritize",
                     "title": "Lower priority to Priority 4",
                     "proposed_priority": 4,
                     "requires_approval": True,
+                    "requires_user_approval": True,
+                    "feasible": True,
+                    "changes": {
+                        "proposed_priority": 4,
+                    },
                     "description": "Create proposal to lower priority to 4 and reschedule when free (requires user approval).",
                 }
             )

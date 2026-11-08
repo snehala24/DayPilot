@@ -93,18 +93,29 @@ export default function TodayPage() {
       setProposingAlternative(`${conflict.commitment_id}-${altIndex}`);
       setFeedbackMessage(null);
 
+      const altKind = alt.kind || alt.action || "reschedule_next_day";
+      const proposedStart =
+        alt.changes?.proposed_start ||
+        alt.proposed_start ||
+        alt.proposed_due_at ||
+        new Date().toISOString();
+      const proposedEnd =
+        alt.changes?.proposed_end ||
+        alt.proposed_end ||
+        new Date(Date.now() + (alt.proposed_duration || 45) * 60000).toISOString();
+
       // Create proposal from alternative
       const payload = {
-        kind: alt.kind === "reschedule_next_day" ? "reschedule" : "calendar_create",
+        kind: altKind === "reschedule_next_day" ? "reschedule" : "calendar_create",
         commitment_id: conflict.commitment_id,
         payload: {
           title: conflict.commitment_title,
-          starts_at: alt.changes.proposed_start || new Date().toISOString(),
-          ends_at: alt.changes.proposed_end || new Date().toISOString(),
+          starts_at: proposedStart,
+          ends_at: proposedEnd,
           tz: "UTC",
-          alternative_kind: alt.kind,
+          alternative_kind: altKind,
         },
-        reason: alt.description,
+        reason: alt.description || alt.title || "Alternative proposed by DayPilot",
       };
 
       const prop = await api.createProposal(payload);
@@ -429,15 +440,15 @@ export default function TodayPage() {
                             >
                               <div className="flex items-center justify-between">
                                 <span className="font-medium text-text capitalize">
-                                  {alt.kind.replace(/_/g, " ")}
+                                  {alt.title || (alt.kind || alt.action || "alternative").replace(/_/g, " ")}
                                 </span>
-                                {alt.requires_user_approval && (
+                                {(alt.requires_user_approval ?? alt.requires_approval ?? true) && (
                                   <span className="text-[10px] text-amber-600 font-mono font-semibold">
                                     Requires Approval
                                   </span>
                                 )}
                               </div>
-                              <p className="text-text-muted text-[11px]">{alt.description}</p>
+                              <p className="text-text-muted text-[11px]">{alt.description || alt.title}</p>
                               <div className="pt-1">
                                 <Button
                                   size="sm"
