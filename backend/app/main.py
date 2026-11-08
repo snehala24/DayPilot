@@ -55,6 +55,7 @@ app.add_middleware(
 
 from app.api.audit import router as audit_router
 from app.api.commitments import router as commitments_router
+from app.api.daily_review import router as daily_review_router
 from app.api.inputs import router as inputs_router
 from app.api.plans import router as plans_router
 from app.api.proposals import router as proposals_router
@@ -66,6 +67,7 @@ app.include_router(plans_router, prefix=settings.API_V1_STR)
 app.include_router(proposals_router, prefix=settings.API_V1_STR)
 app.include_router(reminders_router, prefix=settings.API_V1_STR)
 app.include_router(audit_router, prefix=settings.API_V1_STR)
+app.include_router(daily_review_router, prefix=settings.API_V1_STR)
 
 
 @app.get("/health", tags=["System"])

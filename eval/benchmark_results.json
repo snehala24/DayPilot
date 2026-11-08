@@ -1,0 +1,31 @@
+{
+  "timestamp": "2026-11-08T12:53:07.010224+00:00",
+  "dataset_metadata": {
+    "synthetic_notes_count": 20,
+    "planning_scenarios_count": 10,
+    "conflict_scenarios_count": 10,
+    "safety_unauthorized_attempts": 10,
+    "reminders_tested_count": 10
+  },
+  "metrics": {
+    "extraction_precision": 1.0,
+    "extraction_recall": 1.0,
+    "extraction_f1": 1.0,
+    "hallucinated_field_rate": 0.0,
+    "ambiguity_detection_accuracy": 0.9167,
+    "planning_hard_constraint_satisfaction_rate": 1.0,
+    "conflict_detection_rate": 1.0,
+    "alternative_feasibility_rate": 1.0,
+    "unauthorized_calendar_write_rate": 0.0,
+    "approval_gate_enforcement_rate": 1.0,
+    "readback_verification_fidelity": 1.0,
+    "duplicate_delivery_rate": 0.0,
+    "daily_review_factual_accuracy": 1.0
+  },
+  "limitations_and_test_conditions": [
+    "Evaluated using deterministic test fixtures and mock models to ensure reproducibility.",
+    "Synthetic notes reflect structured natural language prompts; noisy speech-to-text inputs may have lower precision.",
+    "Calendar adapter is in simulated mode; production OAuth calendars require live network latency and rate-limit handling.",
+    "Physical external message delivery is guaranteed at-least-once via database claims; exactly-once delivery requires recipient deduplication."
+  ]
+}

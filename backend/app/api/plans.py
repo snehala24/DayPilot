@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -124,7 +124,7 @@ def generate_day_plan(
         0,
         tzinfo=utc_now().tzinfo,
     )
-    day_end_utc = day_start_utc + datetime.resolution * 86400  # 1 day
+    day_end_utc = day_start_utc + timedelta(days=2)
     events = adapter.get_events(
         user_id=user.id, start_dt=day_start_utc, end_dt=day_end_utc
     )

@@ -15,7 +15,14 @@ import {
   Sparkles,
   CalendarCheck,
 } from "lucide-react";
-import { api, PlanResponse, PlanItem, ConflictItem, ProposalItem } from "@/lib/api";
+import {
+  api,
+  PlanResponse,
+  PlanItem,
+  ConflictItem,
+  ProposalItem,
+  DailyReviewData,
+} from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
@@ -24,6 +31,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 export default function TodayPage() {
   const [plan, setPlan] = useState<PlanResponse | null>(null);
   const [proposals, setProposals] = useState<ProposalItem[]>([]);
+  const [dailyReview, setDailyReview] = useState<DailyReviewData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [replanning, setReplanning] = useState<boolean>(false);
   const [proposingAlternative, setProposingAlternative] = useState<string | null>(null);
@@ -45,6 +53,13 @@ export default function TodayPage() {
 
       const pendingProposals = await api.listProposals("pending");
       setProposals(pendingProposals);
+
+      try {
+        const review = await api.getDailyReview(todayStr);
+        setDailyReview(review);
+      } catch (e) {
+        console.warn("Daily review fetch:", e);
+      }
     } catch (err: any) {
       setFeedbackMessage({ text: err.message || "Failed to load today's plan", type: "error" });
     } finally {
@@ -209,6 +224,91 @@ export default function TodayPage() {
           </div>
         </Card>
       </div>
+
+      {/* Daily Review & Evaluated Status Summary */}
+      {dailyReview && (
+        <Card className="border-border bg-surface shadow-sm overflow-hidden">
+          <CardHeader className="bg-surface-elevated/40 border-b border-border/60 py-3 px-5 flex flex-row items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-primary" />
+              <CardTitle className="text-sm font-semibold">
+                Daily Review & Verified Status
+              </CardTitle>
+              <Badge variant="neutral" className="text-[10px] uppercase font-mono tracking-wider ml-1">
+                Factual Assessment
+              </Badge>
+            </div>
+            <span className="text-xs font-mono text-text-muted">
+              {dailyReview.review_date} ({dailyReview.timezone})
+            </span>
+          </CardHeader>
+          <CardContent className="p-5 space-y-4">
+            {/* Factual Metrics Badges */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 text-center">
+              <div className="p-2.5 rounded-lg border border-border bg-bg/50">
+                <div className="text-lg font-bold text-success">{dailyReview.factual_metrics.completed_count}</div>
+                <div className="text-[10px] font-medium uppercase text-text-muted">Completed</div>
+              </div>
+              <div className="p-2.5 rounded-lg border border-border bg-bg/50">
+                <div className="text-lg font-bold text-primary">{dailyReview.factual_metrics.scheduled_uncompleted_count}</div>
+                <div className="text-[10px] font-medium uppercase text-text-muted">Remaining</div>
+              </div>
+              <div className="p-2.5 rounded-lg border border-border bg-bg/50">
+                <div className={`text-lg font-bold ${dailyReview.factual_metrics.overdue_count > 0 ? "text-danger" : "text-text"}`}>
+                  {dailyReview.factual_metrics.overdue_count}
+                </div>
+                <div className="text-[10px] font-medium uppercase text-text-muted">Overdue</div>
+              </div>
+              <div className="p-2.5 rounded-lg border border-border bg-bg/50">
+                <div className={`text-lg font-bold ${dailyReview.factual_metrics.conflicts_count > 0 ? "text-warning" : "text-text"}`}>
+                  {dailyReview.factual_metrics.conflicts_count}
+                </div>
+                <div className="text-[10px] font-medium uppercase text-text-muted">Conflicts</div>
+              </div>
+              <div className="p-2.5 rounded-lg border border-border bg-bg/50">
+                <div className={`text-lg font-bold ${dailyReview.factual_metrics.pending_proposals_count > 0 ? "text-amber-500" : "text-text"}`}>
+                  {dailyReview.factual_metrics.pending_proposals_count}
+                </div>
+                <div className="text-[10px] font-medium uppercase text-text-muted">Pending Props</div>
+              </div>
+              <div className="p-2.5 rounded-lg border border-border bg-bg/50">
+                <div className={`text-lg font-bold ${dailyReview.factual_metrics.reminders_needing_attention_count > 0 ? "text-danger" : "text-text"}`}>
+                  {dailyReview.factual_metrics.reminders_needing_attention_count}
+                </div>
+                <div className="text-[10px] font-medium uppercase text-text-muted">Attn Needed</div>
+              </div>
+            </div>
+
+            {/* Narrative Summary */}
+            {dailyReview.narrative_summary && (
+              <div className="p-3 rounded-lg bg-surface-elevated border border-border text-xs text-text-muted leading-relaxed">
+                <span className="font-semibold text-text mr-1">Factual Summary:</span>
+                {dailyReview.narrative_summary}
+              </div>
+            )}
+
+            {/* Suggested Next Actions */}
+            {dailyReview.suggested_actions.length > 0 && (
+              <div className="space-y-1.5 pt-1">
+                <div className="text-[11px] font-semibold text-text uppercase tracking-wider flex items-center gap-1.5">
+                  <span>Suggested Next Actions</span>
+                  <span className="text-[10px] font-normal text-text-muted capitalize">
+                    (Inferred from current state — person must approve changes)
+                  </span>
+                </div>
+                <ul className="space-y-1">
+                  {dailyReview.suggested_actions.map((act, idx) => (
+                    <li key={idx} className="text-xs text-text flex items-start gap-2">
+                      <span className="text-primary font-bold mt-0.5">•</span>
+                      <span>{act}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Main Content Grid: Timeline on left, Conflicts & Proposals on right */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

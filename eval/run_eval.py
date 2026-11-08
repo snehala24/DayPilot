@@ -1,22 +1,22 @@
+import argparse
+import json
 import os
 import sys
-import json
 import uuid
-import argparse
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any
 
 # Add backend directory to sys.path
 backend_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "backend")
 sys.path.insert(0, backend_dir)
 
 from app.agent.client import FakeLLMClient, GeminiLLMClient, LLMClient
-from app.agent.schemas import RawExtractionResult, ExtractedCommitment
 from app.agent.extractor import CommitmentExtractor
+from app.agent.schemas import ExtractedCommitment, RawExtractionResult
 from app.config import settings
 
 
-def build_fake_client_from_dataset(dataset: List[Dict[str, Any]]) -> FakeLLMClient:
+def build_fake_client_from_dataset(dataset: list[dict[str, Any]]) -> FakeLLMClient:
     """Populate FakeLLMClient with canned responses from dataset annotations."""
     fake_client = FakeLLMClient()
     for item in dataset:
@@ -27,7 +27,9 @@ def build_fake_client_from_dataset(dataset: List[Dict[str, Any]]) -> FakeLLMClie
                     title=exp["title"],
                     due_date=exp.get("due_date"),
                     due_time=exp.get("due_time"),
-                    due_tz=item.get("user_timezone", "UTC") if exp.get("due_date") else None,
+                    due_tz=item.get("user_timezone", "UTC")
+                    if exp.get("due_date")
+                    else None,
                     priority=exp.get("priority", 3),
                     owner=exp.get("owner"),
                     dependencies=exp.get("dependencies", []),
@@ -36,18 +38,24 @@ def build_fake_client_from_dataset(dataset: List[Dict[str, Any]]) -> FakeLLMClie
             )
         # Key on a distinctive substring from input_text
         key = item["input_text"][:30]
-        fake_client.set_canned_response(key, RawExtractionResult(commitments=canned_commitments))
+        fake_client.set_canned_response(
+            key, RawExtractionResult(commitments=canned_commitments)
+        )
     return fake_client
 
 
-def run_evaluation(use_gemini: bool = False) -> Dict[str, Any]:
-    dataset_path = os.path.join(os.path.dirname(__file__), "data", "synthetic_notes.json")
+def run_evaluation(use_gemini: bool = False) -> dict[str, Any]:
+    dataset_path = os.path.join(
+        os.path.dirname(__file__), "data", "synthetic_notes.json"
+    )
     with open(dataset_path, "r", encoding="utf-8") as f:
         dataset = json.load(f)
 
     if use_gemini:
         if not settings.GEMINI_API_KEY:
-            raise ValueError("GEMINI_API_KEY not found in environment for Gemini evaluation.")
+            raise ValueError(
+                "GEMINI_API_KEY not found in environment for Gemini evaluation."
+            )
         client: LLMClient = GeminiLLMClient(
             api_key=settings.GEMINI_API_KEY,
             model_name=settings.LLM_MODEL,
@@ -84,7 +92,9 @@ def run_evaluation(use_gemini: bool = False) -> Dict[str, Any]:
 
     for item in dataset:
         note_id = uuid.uuid4()
-        ref_time = datetime.fromisoformat(item["reference_timestamp"].replace("Z", "+00:00"))
+        ref_time = datetime.fromisoformat(
+            item["reference_timestamp"].replace("Z", "+00:00")
+        )
         user_tz = item.get("user_timezone", "UTC")
 
         try:
@@ -115,7 +125,11 @@ def run_evaluation(use_gemini: bool = False) -> Dict[str, Any]:
                     continue
                 # Match title similarity or substring
                 ext_title = ext.title.lower()
-                if exp_title in ext_title or ext_title in exp_title or any(w in ext_title for w in exp_title.split()[:3]):
+                if (
+                    exp_title in ext_title
+                    or ext_title in exp_title
+                    or any(w in ext_title for w in exp_title.split()[:3])
+                ):
                     matched = True
                     matched_extracted_indices.add(idx)
                     true_positives += 1
@@ -161,26 +175,46 @@ def run_evaluation(use_gemini: bool = False) -> Dict[str, Any]:
             if amb in flagged_question_fields:
                 detected_ambiguities += 1
 
-        results_table.append({
-            "id": item["id"],
-            "category": item["category"],
-            "expected_count": len(exp_list),
-            "extracted_count": len(ext_list),
-            "questions_count": len(review.questions),
-            "can_confirm_all": review.can_confirm_all,
-        })
+        results_table.append(
+            {
+                "id": item["id"],
+                "category": item["category"],
+                "expected_count": len(exp_list),
+                "extracted_count": len(ext_list),
+                "questions_count": len(review.questions),
+                "can_confirm_all": review.can_confirm_all,
+            }
+        )
 
     # Calculations
-    precision = true_positives / (true_positives + false_positives) if (true_positives + false_positives) > 0 else 0.0
-    recall = true_positives / (true_positives + false_negatives) if (true_positives + false_negatives) > 0 else 0.0
-    f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
+    precision = (
+        true_positives / (true_positives + false_positives)
+        if (true_positives + false_positives) > 0
+        else 0.0
+    )
+    recall = (
+        true_positives / (true_positives + false_negatives)
+        if (true_positives + false_negatives) > 0
+        else 0.0
+    )
+    f1 = (
+        2 * (precision * recall) / (precision + recall)
+        if (precision + recall) > 0
+        else 0.0
+    )
 
     date_acc = date_matches / date_candidates if date_candidates > 0 else 1.0
-    priority_acc = priority_matches / priority_candidates if priority_candidates > 0 else 1.0
+    priority_acc = (
+        priority_matches / priority_candidates if priority_candidates > 0 else 1.0
+    )
     owner_acc = owner_matches / owner_candidates if owner_candidates > 0 else 1.0
     dep_acc = dep_matches / dep_candidates if dep_candidates > 0 else 1.0
-    amb_acc = detected_ambiguities / expected_ambiguities if expected_ambiguities > 0 else 1.0
-    hallucination_rate = hallucinated_fields / total_fields_checked if total_fields_checked > 0 else 0.0
+    amb_acc = (
+        detected_ambiguities / expected_ambiguities if expected_ambiguities > 0 else 1.0
+    )
+    hallucination_rate = (
+        hallucinated_fields / total_fields_checked if total_fields_checked > 0 else 0.0
+    )
     schema_failure_rate = schema_failures / len(dataset) if len(dataset) > 0 else 0.0
 
     summary = {
@@ -206,14 +240,24 @@ def run_evaluation(use_gemini: bool = False) -> Dict[str, Any]:
     print(f"Notes evaluated:                 {summary['total_notes']}")
     print(f"Extraction Precision:            {summary['precision'] * 100:.2f}%")
     print(f"Extraction Recall:               {summary['recall'] * 100:.2f}%")
-    print(f"Extraction F1 Score:             {summary['f1'] * 100:.2f}% (Target: >= 85%)")
+    print(
+        f"Extraction F1 Score:             {summary['f1'] * 100:.2f}% (Target: >= 85%)"
+    )
     print(f"Date Extraction Accuracy:        {summary['date_accuracy'] * 100:.2f}%")
     print(f"Priority Accuracy:               {summary['priority_accuracy'] * 100:.2f}%")
     print(f"Owner Accuracy:                  {summary['owner_accuracy'] * 100:.2f}%")
-    print(f"Dependency Accuracy:             {summary['dependency_accuracy'] * 100:.2f}%")
-    print(f"Ambiguity Detection Accuracy:    {summary['ambiguity_detection_accuracy'] * 100:.2f}%")
-    print(f"Hallucinated Field Rate:         {summary['hallucinated_field_rate'] * 100:.2f}% (Target: 0%)")
-    print(f"Schema Failure Rate:             {summary['schema_validation_failure_rate'] * 100:.2f}% (Target: 0%)")
+    print(
+        f"Dependency Accuracy:             {summary['dependency_accuracy'] * 100:.2f}%"
+    )
+    print(
+        f"Ambiguity Detection Accuracy:    {summary['ambiguity_detection_accuracy'] * 100:.2f}%"
+    )
+    print(
+        f"Hallucinated Field Rate:         {summary['hallucinated_field_rate'] * 100:.2f}% (Target: 0%)"
+    )
+    print(
+        f"Schema Failure Rate:             {summary['schema_validation_failure_rate'] * 100:.2f}% (Target: 0%)"
+    )
     print("=" * 55 + "\n")
 
     return summary
@@ -221,6 +265,8 @@ def run_evaluation(use_gemini: bool = False) -> Dict[str, Any]:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run DayPilot Extraction Benchmark")
-    parser.add_argument("--use-gemini", action="store_true", help="Evaluate with real Gemini API")
+    parser.add_argument(
+        "--use-gemini", action="store_true", help="Evaluate with real Gemini API"
+    )
     args = parser.parse_args()
     run_evaluation(use_gemini=args.use_gemini)
