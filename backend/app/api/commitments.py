@@ -3,6 +3,7 @@ import zoneinfo
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.agent.schemas import (
@@ -12,6 +13,7 @@ from app.agent.schemas import (
 )
 from app.models.database import get_db, utc_now
 from app.models.entities import AuditEvent, Commitment, CommitmentDependency, Note, User
+from app.planner.engine import ensure_utc
 
 router = APIRouter(prefix="/commitments", tags=["Commitments"])
 
@@ -335,6 +337,99 @@ def get_commitment(commitment_id: uuid.UUID, db: Session = Depends(get_db)):
         .filter(CommitmentDependency.commitment_id == c.id)
         .all()
     ]
+    return ConfirmedCommitmentItem(
+        id=c.id,
+        title=c.title,
+        description=c.description,
+        due_at=c.due_at,
+        due_tz=c.due_tz,
+        priority=c.priority,
+        status=c.status,
+        owner=c.owner,
+        estimate_minutes=c.estimate_minutes,
+        source_note_id=c.source_note_id,
+        dependencies=dep_ids,
+    )
+
+
+class UpdateCommitmentRequest(BaseModel):
+    title: str | None = Field(None, min_length=1, max_length=255)
+    description: str | None = None
+    due_at: datetime | None = None
+    due_tz: str | None = None
+    priority: int | None = Field(None, ge=1, le=4)
+    status: str | None = Field(
+        None, pattern="^(open|scheduled|in_progress|done|dropped)$"
+    )
+    estimate_minutes: int | None = Field(None, ge=1)
+    owner: str | None = None
+
+
+@router.patch("/{commitment_id}", response_model=ConfirmedCommitmentItem)
+def update_commitment(
+    commitment_id: uuid.UUID,
+    payload: UpdateCommitmentRequest,
+    db: Session = Depends(get_db),
+):
+    """Update attributes of an existing confirmed commitment."""
+    c = db.query(Commitment).filter(Commitment.id == commitment_id).first()
+    if not c:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Commitment with ID {commitment_id} not found.",
+        )
+
+    now = utc_now()
+    updates = {}
+
+    if payload.title is not None:
+        c.title = payload.title.strip()
+        updates["title"] = c.title
+    if payload.description is not None:
+        c.description = payload.description.strip()
+        updates["description"] = c.description
+    if payload.due_at is not None:
+        c.due_at = ensure_utc(payload.due_at)
+        updates["due_at"] = c.due_at.isoformat()
+    if payload.due_tz is not None:
+        c.due_tz = payload.due_tz.strip()
+        updates["due_tz"] = c.due_tz
+    if payload.priority is not None:
+        c.priority = payload.priority
+        updates["priority"] = c.priority
+    if payload.status is not None:
+        c.status = payload.status
+        updates["status"] = c.status
+    if payload.estimate_minutes is not None:
+        c.estimate_minutes = payload.estimate_minutes
+        updates["estimate_minutes"] = c.estimate_minutes
+    if payload.owner is not None:
+        c.owner = payload.owner.strip() or None
+        updates["owner"] = c.owner
+
+    c.updated_at = now
+
+    audit = AuditEvent(
+        id=uuid.uuid4(),
+        user_id=c.user_id,
+        entity_type="commitment",
+        entity_id=c.id,
+        action="update_commitment",
+        actor="person",
+        payload=updates,
+        created_at=now,
+    )
+    db.add(audit)
+    db.commit()
+    db.refresh(c)
+
+    dep_ids = [
+        d.depends_on_id
+        for d in db.query(CommitmentDependency)
+        .filter(CommitmentDependency.commitment_id == c.id)
+        .all()
+    ]
+
     return ConfirmedCommitmentItem(
         id=c.id,
         title=c.title,

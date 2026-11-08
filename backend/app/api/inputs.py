@@ -66,7 +66,10 @@ def submit_raw_input(
 
     # 4. Run extractor
     user_tz = payload.user_timezone or user.timezone or "UTC"
-    extractor = CommitmentExtractor(llm_client=llm_client)
+    active_client = (
+        llm_client if hasattr(llm_client, "generate_structured") else get_llm_client()
+    )
+    extractor = CommitmentExtractor(llm_client=active_client)
 
     try:
         review = extractor.extract(

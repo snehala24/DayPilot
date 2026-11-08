@@ -13,6 +13,7 @@ import {
   Filter,
   Plus,
   Send,
+  Edit2,
 } from "lucide-react";
 import { api, ConfirmedCommitmentItem, ReminderItem } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
@@ -33,6 +34,14 @@ export default function CommitmentsPage() {
   const [reminderChannel, setReminderChannel] = useState<string>("in_app");
   const [creatingReminder, setCreatingReminder] = useState<boolean>(false);
   const [dispatching, setDispatching] = useState<boolean>(false);
+
+  // Commitment edit modal
+  const [editingCommitment, setEditingCommitment] = useState<ConfirmedCommitmentItem | null>(null);
+  const [editTitle, setEditTitle] = useState<string>("");
+  const [editStatus, setEditStatus] = useState<string>("open");
+  const [editPriority, setEditPriority] = useState<number>(2);
+  const [editDuration, setEditDuration] = useState<string>("");
+  const [updatingCommitment, setUpdatingCommitment] = useState<boolean>(false);
 
   const loadData = async () => {
     try {
@@ -80,6 +89,27 @@ export default function CommitmentsPage() {
       setFeedback({ text: err.message || "Failed to schedule reminder.", type: "error" });
     } finally {
       setCreatingReminder(false);
+    }
+  };
+
+  const handleUpdateCommitment = async () => {
+    if (!editingCommitment) return;
+    try {
+      setUpdatingCommitment(true);
+      setFeedback(null);
+      await api.updateCommitment(editingCommitment.id, {
+        title: editTitle,
+        status: editStatus,
+        priority: editPriority,
+        estimate_minutes: editDuration ? parseInt(editDuration) : undefined,
+      });
+      setFeedback({ text: `Commitment "${editTitle}" updated successfully.`, type: "success" });
+      setEditingCommitment(null);
+      loadData();
+    } catch (err: any) {
+      setFeedback({ text: err.message || "Failed to update commitment.", type: "error" });
+    } finally {
+      setUpdatingCommitment(false);
     }
   };
 
@@ -296,21 +326,37 @@ export default function CommitmentsPage() {
                       </td>
 
                       <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setSelectedCommitment(c);
-                            // Default reminder: 1 hour before due or 1 hour from now
-                            const defaultTime = c.due_at
-                              ? new Date(new Date(c.due_at).getTime() - 60 * 60 * 1000)
-                              : new Date(Date.now() + 60 * 60 * 1000);
-                            setReminderDueAt(defaultTime.toISOString().slice(0, 16));
-                          }}
-                        >
-                          <Bell className="w-3.5 h-3.5" />
-                          Set Reminder
-                        </Button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setEditingCommitment(c);
+                              setEditTitle(c.title);
+                              setEditStatus(c.status);
+                              setEditPriority(c.priority);
+                              setEditDuration(c.estimate_minutes ? c.estimate_minutes.toString() : "");
+                            }}
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                            Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setSelectedCommitment(c);
+                              // Default reminder: 1 hour before due or 1 hour from now
+                              const defaultTime = c.due_at
+                                ? new Date(new Date(c.due_at).getTime() - 60 * 60 * 1000)
+                                : new Date(Date.now() + 60 * 60 * 1000);
+                              setReminderDueAt(defaultTime.toISOString().slice(0, 16));
+                            }}
+                          >
+                            <Bell className="w-3.5 h-3.5" />
+                            Set Reminder
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -380,6 +426,95 @@ export default function CommitmentsPage() {
                 disabled={!reminderDueAt}
               >
                 Save Scheduled Reminder
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Commitment Modal */}
+      {editingCommitment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-surface border border-border rounded-xl shadow-xl max-w-md w-full p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <Edit2 className="w-5 h-5 text-primary" />
+                <h3 className="text-base font-semibold text-text">Edit Commitment</h3>
+              </div>
+              <button
+                onClick={() => setEditingCommitment(null)}
+                className="text-text-muted hover:text-text text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="font-semibold text-text-muted block mb-1">Title</label>
+                <input
+                  type="text"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="w-full px-3 py-2 rounded border border-border bg-bg text-text text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-text-muted block mb-1">Status</label>
+                  <select
+                    value={editStatus}
+                    onChange={(e) => setEditStatus(e.target.value)}
+                    className="w-full px-3 py-2 rounded border border-border bg-bg text-text text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="open">Open</option>
+                    <option value="scheduled">Scheduled</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="done">Done</option>
+                    <option value="dropped">Dropped</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-text-muted block mb-1">Priority</label>
+                  <select
+                    value={editPriority}
+                    onChange={(e) => setEditPriority(parseInt(e.target.value))}
+                    className="w-full px-3 py-2 rounded border border-border bg-bg text-text text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    <option value={1}>P1 - Low</option>
+                    <option value={2}>P2 - Normal</option>
+                    <option value={3}>P3 - High</option>
+                    <option value={4}>P4 - Urgent</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="font-semibold text-text-muted block mb-1">Estimate (Minutes)</label>
+                <input
+                  type="number"
+                  value={editDuration}
+                  onChange={(e) => setEditDuration(e.target.value)}
+                  placeholder="e.g. 60"
+                  className="w-full px-3 py-2 rounded border border-border bg-bg text-text text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-border">
+              <Button size="sm" variant="outline" onClick={() => setEditingCommitment(null)}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={handleUpdateCommitment}
+                loading={updatingCommitment}
+                disabled={!editTitle.trim()}
+              >
+                Save Changes
               </Button>
             </div>
           </div>

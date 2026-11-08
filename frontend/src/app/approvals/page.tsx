@@ -60,10 +60,23 @@ export default function ApprovalsPage() {
         editedPayload
       );
 
-      setFeedback({
-        text: `Proposal approved, executed, and read-back verified! Event created: "${approved.result?.title || approved.payload?.title}"`,
-        type: "success",
-      });
+      // Honest status reporting: Only claim verified when backend confirms read-back verification
+      if (approved.status === "verified") {
+        setFeedback({
+          text: `Proposal approved, executed, and read-back verified! Event created: "${approved.result?.title || approved.payload?.title}" (External ID: ${approved.result?.external_id || "confirmed"})`,
+          type: "success",
+        });
+      } else if (approved.status === "failed") {
+        setFeedback({
+          text: `Proposal approved, but execution failed verification: ${approved.result?.error || "Read-back mismatch"}. Flagged for '${approved.recovery_status || "needs_attention"}'.`,
+          type: "error",
+        });
+      } else {
+        setFeedback({
+          text: `Proposal decision recorded: status is '${approved.status}'.`,
+          type: "success",
+        });
+      }
 
       // Refresh list
       loadProposals();

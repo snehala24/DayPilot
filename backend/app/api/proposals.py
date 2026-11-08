@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.orm import Session
 
 from app.executor.executor import ApprovalGateViolationError, ProposalExecutor
@@ -12,6 +12,26 @@ from app.models.entities import Approval, AuditEvent, Proposal, User
 from app.planner.engine import ensure_utc
 
 router = APIRouter(prefix="/proposals", tags=["Proposals & Approval Queue"])
+
+
+class CalendarActionPayload(BaseModel):
+    title: str = Field(..., min_length=1, max_length=255)
+    starts_at: str = Field(..., description="ISO 8601 timestamp string")
+    ends_at: str = Field(..., description="ISO 8601 timestamp string")
+    tz: str = Field("UTC", max_length=64)
+    event_id: str | None = None
+    alternative_kind: str | None = None
+
+    @model_validator(mode="after")
+    def validate_timestamps(self):
+        try:
+            start_dt = ensure_utc(datetime.fromisoformat(self.starts_at))
+            end_dt = ensure_utc(datetime.fromisoformat(self.ends_at))
+        except Exception as e:
+            raise ValueError(f"Invalid timestamp format: {e}")
+        if start_dt >= end_dt:
+            raise ValueError("starts_at must be strictly before ends_at")
+        return self
 
 
 class CreateProposalRequest(BaseModel):
@@ -209,12 +229,25 @@ def approve_proposal(
             detail=f"Proposal {proposal_id} already has a decision: '{existing_approval.decision}'.",
         )
 
-    # 5. Persist Approval Record
+    # 5. Validate revised payload if edited
+    validated_edited_payload = None
+    if req.edited_payload is not None:
+        try:
+            validated_edited_payload = CalendarActionPayload(
+                **req.edited_payload
+            ).model_dump(mode="json")
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Invalid revised payload: {e}",
+            )
+
+    # 6. Persist Approval Record
     approval = Approval(
         id=uuid.uuid4(),
         proposal_id=proposal.id,
         decision="approved",
-        edited_payload=req.edited_payload,
+        edited_payload=validated_edited_payload,
         decided_by="person",
         decided_at=now,
         reason=req.reason,
@@ -224,9 +257,25 @@ def approve_proposal(
     db.add(approval)
     proposal.status = "approved"
     proposal.updated_at = now
+
+    audit = AuditEvent(
+        id=uuid.uuid4(),
+        user_id=proposal.user_id,
+        entity_type="proposal",
+        entity_id=proposal.id,
+        action="approve_proposal",
+        actor="person",
+        payload={
+            "original_payload": proposal.payload,
+            "approved_edited_payload": validated_edited_payload,
+            "reason": req.reason,
+        },
+        created_at=now,
+    )
+    db.add(audit)
     db.commit()
 
-    # 6. Invoke Isolated Executor
+    # 7. Invoke Isolated Executor
     executor = ProposalExecutor(db=db)
     try:
         executor.execute_proposal(proposal.id)

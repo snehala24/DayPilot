@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.models.database import get_db
-from app.models.entities import AuditEvent
+from app.models.entities import AuditEvent, User
 
 router = APIRouter(prefix="/audit-events", tags=["Audit & History"])
 
@@ -27,13 +27,18 @@ class AuditEventResponse(BaseModel):
 
 @router.get("", response_model=list[AuditEventResponse])
 def list_audit_events(
-    entity_type: str | None = Query(None, description="Filter by entity type (proposal, commitment, reminder, plan)"),
+    entity_type: str | None = Query(
+        None, description="Filter by entity type (proposal, commitment, reminder, plan)"
+    ),
     action: str | None = Query(None, description="Filter by action name"),
     limit: int = Query(100, ge=1, le=500, description="Max audit events to return"),
     db: Session = Depends(get_db),
 ):
     """Retrieve immutable append-only audit trail ordered by created_at desc."""
+    user = db.query(User).first()
     query = db.query(AuditEvent)
+    if user:
+        query = query.filter(AuditEvent.user_id == user.id)
     if isinstance(entity_type, str):
         query = query.filter(AuditEvent.entity_type == entity_type)
     if isinstance(action, str):
