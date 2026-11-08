@@ -189,6 +189,7 @@ class ReminderDispatcher:
                 title=title,
                 message=message,
                 channel=reminder.channel,
+                idempotency_key=reminder.idempotency_key,
             )
 
             # Success

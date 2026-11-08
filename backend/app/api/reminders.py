@@ -10,7 +10,7 @@ from app.integrations.notifications import (
     SimulatedNotificationAdapter,
 )
 from app.models.database import get_db
-from app.models.entities import DeliveryAttempt, Reminder
+from app.models.entities import Commitment, DeliveryAttempt, Reminder, User
 from app.reminders.manager import (
     ReminderManager,
     ReminderNotFoundError,
@@ -113,7 +113,12 @@ def list_reminders(
     db: Session = Depends(get_db),
 ):
     """List reminders with optional status and commitment filters."""
+    user = db.query(User).first()
     query = db.query(Reminder)
+    if user:
+        query = query.join(Commitment, Reminder.commitment_id == Commitment.id).filter(
+            Commitment.user_id == user.id
+        )
     if isinstance(status, str):
         query = query.filter(Reminder.status == status)
     if isinstance(commitment_id, uuid.UUID):
@@ -129,9 +134,15 @@ def get_reminder(
     db: Session = Depends(get_db),
 ):
     """Retrieve full details for a reminder including all delivery attempts."""
+    user = db.query(User).first()
     manager = ReminderManager(db=db)
     try:
         reminder = manager.get_reminder(reminder_id)
+        if user and reminder.commitment and reminder.commitment.user_id != user.id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Reminder with ID {reminder_id} not found.",
+            )
         attempts = (
             db.query(DeliveryAttempt)
             .filter(DeliveryAttempt.reminder_id == reminder.id)
@@ -163,8 +174,15 @@ def cancel_reminder(
     db: Session = Depends(get_db),
 ):
     """Cancel a scheduled or retrying reminder."""
+    user = db.query(User).first()
     manager = ReminderManager(db=db)
     try:
+        rem_check = manager.get_reminder(reminder_id)
+        if user and rem_check.commitment and rem_check.commitment.user_id != user.id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Reminder with ID {reminder_id} not found.",
+            )
         reminder = manager.cancel_reminder(reminder_id)
         return _build_reminder_response(reminder)
     except ReminderNotFoundError as e:

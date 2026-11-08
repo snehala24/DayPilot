@@ -289,10 +289,13 @@ def list_commitments(
     db: Session = Depends(get_db),
 ):
     """List commitments with optional status and project filters."""
+    user = db.query(User).first()
     query = db.query(Commitment)
-    if status:
+    if user:
+        query = query.filter(Commitment.user_id == user.id)
+    if isinstance(status, str):
         query = query.filter(Commitment.status == status)
-    if project_id:
+    if isinstance(project_id, uuid.UUID):
         query = query.filter(Commitment.project_id == project_id)
 
     commitments = query.order_by(Commitment.created_at.desc()).all()
@@ -325,7 +328,11 @@ def list_commitments(
 @router.get("/{commitment_id}", response_model=ConfirmedCommitmentItem)
 def get_commitment(commitment_id: uuid.UUID, db: Session = Depends(get_db)):
     """Retrieve commitment detail with dependencies and provenance."""
-    c = db.query(Commitment).filter(Commitment.id == commitment_id).first()
+    user = db.query(User).first()
+    query = db.query(Commitment).filter(Commitment.id == commitment_id)
+    if user:
+        query = query.filter(Commitment.user_id == user.id)
+    c = query.first()
     if not c:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -372,7 +379,11 @@ def update_commitment(
     db: Session = Depends(get_db),
 ):
     """Update attributes of an existing confirmed commitment."""
-    c = db.query(Commitment).filter(Commitment.id == commitment_id).first()
+    user = db.query(User).first()
+    query = db.query(Commitment).filter(Commitment.id == commitment_id)
+    if user:
+        query = query.filter(Commitment.user_id == user.id)
+    c = query.first()
     if not c:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

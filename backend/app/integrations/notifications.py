@@ -41,6 +41,7 @@ class NotificationAdapter(abc.ABC):
         title: str,
         message: str,
         channel: str = "in_app",
+        idempotency_key: str | None = None,
     ) -> NotificationResult:
         """Send a notification for a reminder."""
 
@@ -58,6 +59,7 @@ class FakeNotificationAdapter(NotificationAdapter):
         title: str,
         message: str,
         channel: str = "in_app",
+        idempotency_key: str | None = None,
     ) -> NotificationResult:
         now = utc_now()
         payload = {
@@ -66,6 +68,7 @@ class FakeNotificationAdapter(NotificationAdapter):
             "title": title,
             "message": message,
             "channel": channel,
+            "idempotency_key": idempotency_key,
             "timestamp": now,
         }
         self.sent_notifications.append(payload)
@@ -94,11 +97,14 @@ class SimulatedNotificationAdapter(NotificationAdapter):
         default_mode: str = "success",
         failures_before_success: int = 2,
         simulated_latency_ms: float = 10.0,
+        enable_provider_deduplication: bool = False,
     ):
         self.default_mode = default_mode
         self.failures_before_success = failures_before_success
         self.simulated_latency_ms = simulated_latency_ms
+        self.enable_provider_deduplication = enable_provider_deduplication
         self.failure_counts: dict[uuid.UUID, int] = {}
+        self.seen_idempotency_keys: set[str] = set()
         self.sent_deliveries: list[dict[str, Any]] = []
 
     def send(
@@ -108,9 +114,23 @@ class SimulatedNotificationAdapter(NotificationAdapter):
         title: str,
         message: str,
         channel: str = "in_app",
+        idempotency_key: str | None = None,
     ) -> NotificationResult:
         start_time = time.time()
         now = utc_now()
+
+        # Check provider-side idempotency deduplication if supported/enabled
+        if self.enable_provider_deduplication and idempotency_key:
+            if idempotency_key in self.seen_idempotency_keys:
+                return NotificationResult(
+                    success=True,
+                    channel=channel,
+                    error=None,
+                    latency_ms=0.5,
+                    delivered_at=now,
+                    metadata={"provider_deduplicated": True},
+                )
+            self.seen_idempotency_keys.add(idempotency_key)
 
         # Check mode
         mode = self.default_mode

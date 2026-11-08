@@ -141,7 +141,7 @@ export default function TodayPage() {
             <Badge variant="primary">{todayStr}</Badge>
           </div>
           <p className="text-sm text-text-muted mt-1">
-            Constraint-validated plan respecting fixed calendar events, working hours, and dependencies.
+            Constraint-validated plan respecting fixed events (Simulated Calendar Adapter), working hours, and dependencies.
           </p>
         </div>
 

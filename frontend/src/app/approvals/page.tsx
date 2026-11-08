@@ -223,6 +223,9 @@ export default function ApprovalsPage() {
                     <span className="font-mono text-xs px-2 py-0.5 rounded bg-stone-100 dark:bg-stone-800 text-text-muted font-semibold">
                       {prop.kind}
                     </span>
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                      SIMULATED ADAPTER
+                    </span>
                     <span className="text-xs font-mono text-text-muted">
                       ID: {prop.idempotency_key}
                     </span>
@@ -271,7 +274,7 @@ export default function ApprovalsPage() {
                       Read-Back Verification Confirmed
                     </div>
                     <div className="font-mono text-[11px] text-emerald-700 dark:text-emerald-400">
-                      External Calendar ID: {prop.result.external_id || prop.result.calendar_event_id} | Verified at: {prop.result.verified_at}
+                      Simulated Calendar ID: {prop.result.external_id || prop.result.calendar_event_id} | Verified at: {prop.result.verified_at}
                     </div>
                   </div>
                 )}

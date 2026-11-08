@@ -1,6 +1,6 @@
 # DayPilot — Phase 7 Comprehensive Evaluation Benchmark Report
 
-**Generated At**: `2026-11-08T12:53:07.010224+00:00`  
+**Generated At**: `2026-11-08T13:17:30.214141+00:00`  
 **Evaluation Harness**: Reproducible Deterministic Evaluation Suite  
 **Working Branch**: `feature/daypilot-mvp`
 
@@ -28,9 +28,9 @@
 
 ## 2. Dataset Sizes & Test Conditions
 
-- **Extraction Dataset**: 20 independently annotated synthetic user notes across multiple domains (students, freelancers, executives, contractors) with known ground truth commitments, uncertainty tags, and dependency graphs.
+- **Extraction Dataset**: 21 independently annotated synthetic user notes across multiple domains (students, freelancers, executives, contractors) with known ground truth commitments, uncertainty tags, and dependency graphs.
 - **Planning Engine**: 10 diverse scenario evaluations with fixed events, lunch buffers, and dependency chains.
-- **Conflict Scenarios**: 10 overloaded calendar cases testing alternative generation and non-destructive rescheduling proposals.
+- **Conflict Scenarios**: 12 overloaded calendar cases testing alternative generation and non-destructive rescheduling proposals.
 - **Security & Safety Suite**: 10 unauthorized write attempts, expired proposal tests, tampering simulations, and read-back mismatch fault injection.
 - **Reminder Engine**: 10 reminders evaluated for atomic CAS leasing, exponential backoff, crash recovery, and duplicate delivery suppression.
 

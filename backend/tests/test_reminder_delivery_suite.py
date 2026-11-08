@@ -400,3 +400,135 @@ def test_concurrent_workers_zero_duplicate_deliveries(db_session, seeded_db):
         .count()
     )
     assert total_attempts == 5
+
+
+def test_crash_window_without_provider_deduplication_results_in_at_least_once_duplicate(
+    db_session, seeded_db
+):
+    """Crash Window Reproduction:
+
+    1. Worker claims reminder via atomic CAS.
+    2. External notification provider accepts and sends message.
+    3. Worker crashes immediately before database records delivery success.
+    4. Recovery worker reclaims reminder after lease expiration.
+    5. Second dispatch re-sends.
+    Without provider-side deduplication, physical duplicate delivery occurs (at-least-once).
+    """
+    commitment = db_session.query(Commitment).first()
+    now = utc_now()
+
+    rem = Reminder(
+        id=uuid.uuid4(),
+        commitment_id=commitment.id,
+        due_at=now - timedelta(minutes=5),
+        channel="in_app",
+        status="scheduled",
+        idempotency_key=f"crash-window-raw-{uuid.uuid4()}",
+    )
+    db_session.add(rem)
+    db_session.commit()
+
+    adapter = SimulatedNotificationAdapter(
+        default_mode="success", enable_provider_deduplication=False
+    )
+    dispatcher = ReminderDispatcher(
+        db=db_session, adapter=adapter, claim_timeout_seconds=0.1
+    )
+
+    # 1. Claim reminder
+    claimed_ids = dispatcher._claim_due_reminders(now, batch_size=1)
+    assert rem.id in claimed_ids
+
+    # 2. Provider sends message
+    send_res = adapter.send(
+        reminder_id=rem.id,
+        recipient="snehala@daypilot.local",
+        title="Crash Test",
+        message="Important Alert",
+        channel="in_app",
+        idempotency_key=rem.idempotency_key,
+    )
+    assert send_res.success is True
+    assert len(adapter.sent_deliveries) == 1
+
+    # 3. Process crashes! Database is NOT updated to delivered; remains 'claimed'
+    rem_in_db = db_session.query(Reminder).filter(Reminder.id == rem.id).first()
+    assert rem_in_db.status == "claimed"
+
+    # 4. Lease expires; recovery worker resets claim to retrying
+    crash_time = now + timedelta(seconds=1)
+    recovered = dispatcher._recover_abandoned_claims(crash_time)
+    assert recovered == 1
+    assert rem_in_db.status == "retrying"
+
+    # 5. Second dispatch re-sends to provider
+    summary = dispatcher.dispatch_due_reminders(now=crash_time + timedelta(seconds=2))
+    assert summary.delivered_count == 1
+    assert rem_in_db.status == "delivered"
+
+    # Physical duplicate delivery confirmed (2 sends!)
+    assert len(adapter.sent_deliveries) == 2
+
+
+def test_crash_window_with_provider_deduplication_suppresses_duplicate(
+    db_session, seeded_db
+):
+    """Crash Window with Provider-Side Idempotency:
+
+    When provider supports idempotency tokens, re-dispatching with the same key
+    results in provider deduplication (zero physical duplicates).
+    """
+    commitment = db_session.query(Commitment).first()
+    now = utc_now()
+
+    rem = Reminder(
+        id=uuid.uuid4(),
+        commitment_id=commitment.id,
+        due_at=now - timedelta(minutes=5),
+        channel="in_app",
+        status="scheduled",
+        idempotency_key=f"crash-window-dedup-{uuid.uuid4()}",
+    )
+    db_session.add(rem)
+    db_session.commit()
+
+    # Provider with server-side idempotency enabled
+    adapter = SimulatedNotificationAdapter(
+        default_mode="success", enable_provider_deduplication=True
+    )
+    dispatcher = ReminderDispatcher(
+        db=db_session, adapter=adapter, claim_timeout_seconds=0.1
+    )
+
+    # 1. Claim reminder
+    claimed_ids = dispatcher._claim_due_reminders(now, batch_size=1)
+    assert rem.id in claimed_ids
+
+    # 2. Provider sends message
+    send_res = adapter.send(
+        reminder_id=rem.id,
+        recipient="snehala@daypilot.local",
+        title="Crash Test Dedup",
+        message="Important Alert",
+        channel="in_app",
+        idempotency_key=rem.idempotency_key,
+    )
+    assert send_res.success is True
+    assert len(adapter.sent_deliveries) == 1
+
+    # 3. Crash simulated: DB still claimed
+    rem_in_db = db_session.query(Reminder).filter(Reminder.id == rem.id).first()
+    assert rem_in_db.status == "claimed"
+
+    # 4. Recovery resets lease
+    crash_time = now + timedelta(seconds=1)
+    recovered = dispatcher._recover_abandoned_claims(crash_time)
+    assert recovered == 1
+
+    # 5. Second dispatch passes idempotency_key to adapter -> provider deduplicates!
+    summary = dispatcher.dispatch_due_reminders(now=crash_time + timedelta(seconds=2))
+    assert summary.delivered_count == 1
+    assert rem_in_db.status == "delivered"
+
+    # Physical deliveries strictly 1 (duplicate suppressed!)
+    assert len(adapter.sent_deliveries) == 1

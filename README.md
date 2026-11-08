@@ -199,22 +199,41 @@ Or explore the five UI screens:
 
 ---
 
-## 10. Known Limitations & Reliability Considerations
+## 10. Limitation Audit & Reliability Hardening
 
-1. **Simulated External Adapters (MVP Scope)**:
-   - Google Calendar and Twilio notification adapters are implemented as simulated in-database stores with realistic fault injection to verify contracts safely without incurring external charges or side effects.
-2. **At-Least-Once External Delivery**:
-   - Database operations are strictly idempotent via unique keys and atomic CAS leasing. However, physical network message delivery is at-least-once: in a network crash occurring after provider acceptance but before database acknowledgment, the worker will safely re-attempt delivery upon lease recovery.
-3. **Single-User MVP**:
-   - The initial MVP is configured for a single authenticated personal admin user (`snehala@daypilot.local`). Multi-tenant session authentication can be enabled by wiring JWT middleware to `User.id`.
-4. **Synthetic Benchmark Scope**:
-   - Benchmark evaluations reflect synthetic datasets with labeled ground truth. Real-world noisy audio or multi-turn speech transcripts may require additional domain-specific prompt tuning.
+### 10.1 Notification Delivery Reliability: At-Least-Once Physical Delivery
+- **Database-Level Idempotency**: All reminders possess a unique `idempotency_key` constraint and use atomic Compare-And-Swap (`CAS`) state transitions (`status='pending'` -> `'claimed'`). Concurrent workers cannot claim the same reminder.
+- **Provider-Level Idempotency & Crash Recovery**:
+  - If a worker process crashes *after* the external provider accepts a message but *before* the database commits `'delivered'`, the reminder remains in `'claimed'` state until its lease expires (`CLAIM_TIMEOUT_SECONDS=300`).
+  - Upon lease expiration, the recovery worker resets the reminder to `'retrying'` and re-dispatches it.
+  - If the external delivery channel supports provider-level deduplication (such as Twilio Message deduplication or Stripe idempotency keys), passing `idempotency_key=reminder.idempotency_key` prevents physical duplicate delivery.
+  - For standard protocols lacking provider-side idempotency (e.g. SMTP email or standard SMS gateways), DayPilot provides **at-least-once physical delivery**, never claiming false "exactly-once" delivery.
+  - This behavior is proven by regression tests in `backend/tests/test_reminder_delivery_suite.py`.
+
+### 10.2 Single-User Model & Explicit Public Deployment Prohibition
+> [!WARNING]
+> **PROHIBITION AGAINST UNPROTECTED PUBLIC DEPLOYMENT**
+> DayPilot MVP is designed as a single-user personal administration agent. The backend endpoints default-scope operations to the primary seeded user (`snehala@daypilot.local`). While query-level tenant isolation is strictly enforced (as proven by `backend/tests/test_user_isolation.py`), the MVP **does not include session JWT or OAuth2 bearer token authentication middleware**.
+> **DO NOT deploy this MVP directly to public-facing networks or production internet environments without placing it behind an authenticating reverse proxy or implementing JWT session middleware.**
+
+### 10.3 Simulated External Adapters
+- All calendar operations utilize `SimulatedCalendarAdapter` and all notifications utilize `SimulatedNotificationAdapter`.
+- These adapters reproduce realistic latency, transient failures, dead-letter exhaustion, and read-back verification contracts without creating live third-party account side effects or billing charges.
+- The UI explicitly tags these integrations with visual `(SIMULATED ADAPTER)` badges.
+
+### 10.4 Synthetic vs. Real-World Benchmark Scope
+- System benchmarks (`eval/run_comprehensive_benchmark.py`) evaluate 21 structured test scenarios covering standard deadlines, relative times, ambiguity flagging, boundary durations (>24h tasks), and prompt injection resistance.
+- Performance on real-world noisy voice transcripts or highly ambiguous jargon may require domain-specific fine-tuning or few-shot examples.
 
 ---
 
-## 11. Security & Safety Caveats
+## 11. Production Hardening Checklist
 
-- **External-Write Isolation**: Only `ProposalExecutor` in `backend/app/executor/` is permitted to invoke calendar write adapters.
-- **Approval Gate Immutability**: Proposing is separate from execution. Edits to proposals are re-validated through strict Pydantic schemas before any action can occur.
-- **Append-Only Auditing**: Audit records cannot be updated or deleted by normal application workflows.
-- **Secrets Management**: No API keys or tokens are sent to or stored in frontend bundles.
+Before promoting DayPilot from MVP to multi-tenant production:
+
+- [ ] **Authentication Middleware**: Implement OAuth2 / JWT authentication (e.g. Auth0, Supabase, or FastAPI OAuth2 with PKCE) and inject `current_user: User` into every API dependency.
+- [ ] **PostgreSQL Migration**: Move from local SQLite to PostgreSQL with `pgbouncer` connection pooling.
+- [ ] **Production CORS Whitelist**: Replace development CORS wildcard with explicit HTTPS production domains.
+- [ ] **Live Integration Adapters**: Implement `GoogleCalendarOAuthAdapter` (using Google Calendar API v3) and `TwilioNotificationAdapter` (using Twilio REST API) adhering to `NotificationAdapter` and `CalendarAdapter` contracts.
+- [ ] **External-Write Isolation**: Maintain the hard invariant that external adapters are invoked exclusively by `ProposalExecutor` upon human approval.
+- [ ] **Distributed Task Queue**: For high-volume multi-tenant notifications, replace in-process APScheduler with Redis/Celery or Temporal.io with durable worker leasing.

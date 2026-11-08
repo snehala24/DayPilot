@@ -5,6 +5,12 @@ import path from "path";
 export default defineConfig({
   plugins: [react()],
   root: __dirname,
+  server: {
+    fs: {
+      strict: true,
+      allow: [__dirname],
+    },
+  },
   test: {
     environment: "jsdom",
     globals: true,

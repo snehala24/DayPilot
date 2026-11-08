@@ -155,7 +155,10 @@ def list_proposals(
     db: Session = Depends(get_db),
 ):
     """List proposals in the approval queue (oldest first)."""
+    user = db.query(User).first()
     query = db.query(Proposal)
+    if user:
+        query = query.filter(Proposal.user_id == user.id)
     if isinstance(status, str):
         query = query.filter(Proposal.status == status)
     if isinstance(kind, str):
@@ -171,7 +174,11 @@ def get_proposal(
     db: Session = Depends(get_db),
 ):
     """Retrieve details for a specific proposal."""
-    p = db.query(Proposal).filter(Proposal.id == proposal_id).first()
+    user = db.query(User).first()
+    query = db.query(Proposal).filter(Proposal.id == proposal_id)
+    if user:
+        query = query.filter(Proposal.user_id == user.id)
+    p = query.first()
     if not p:
         raise HTTPException(
             status_code=404, detail=f"Proposal {proposal_id} not found."
@@ -196,7 +203,11 @@ def approve_proposal(
     req = req or ApproveProposalRequest()
 
     # 1. Fetch proposal
-    proposal = db.query(Proposal).filter(Proposal.id == proposal_id).first()
+    user = db.query(User).first()
+    query = db.query(Proposal).filter(Proposal.id == proposal_id)
+    if user:
+        query = query.filter(Proposal.user_id == user.id)
+    proposal = query.first()
     if not proposal:
         raise HTTPException(
             status_code=404, detail=f"Proposal {proposal_id} not found."
@@ -295,7 +306,11 @@ def reject_proposal(
     """Reject a proposed action."""
     req = req or RejectProposalRequest()
 
-    proposal = db.query(Proposal).filter(Proposal.id == proposal_id).first()
+    user = db.query(User).first()
+    query = db.query(Proposal).filter(Proposal.id == proposal_id)
+    if user:
+        query = query.filter(Proposal.user_id == user.id)
+    proposal = query.first()
     if not proposal:
         raise HTTPException(
             status_code=404, detail=f"Proposal {proposal_id} not found."

@@ -86,7 +86,7 @@ def run_planning_benchmark() -> dict[str, Any]:
 
 
 def run_conflict_benchmark() -> dict[str, Any]:
-    """Benchmark conflict detection and alternative feasibility on 10 overloaded scenarios."""
+    """Benchmark conflict detection and alternative feasibility across overloaded and boundary scenarios."""
     planner = DayPlanner(
         user_timezone="UTC",
         working_hours_start="09:00",
@@ -94,19 +94,19 @@ def run_conflict_benchmark() -> dict[str, Any]:
     )
     test_date = datetime(2026, 11, 10).date()
 
-    # 10 test cases where commitments cannot fit
+    # Test cases: 10 standard overloads + 2 extreme boundary conditions (>24h and multi-day)
+    test_durations = [720] * 10 + [1500, 2880]
     conflicts_detected = 0
     valid_alternatives_count = 0
     total_alternatives_checked = 0
 
-    for i in range(10):
-        # 12-hour task in a 9-hour workday -> guaranteed conflict
+    for idx, dur in enumerate(test_durations):
         overloaded_task = Commitment(
             id=uuid.uuid4(),
             user_id=uuid.uuid4(),
-            title=f"Mega Audit Task {i}",
+            title=f"Mega Audit Task {idx} ({dur}m)",
             priority=1,
-            estimate_minutes=720,
+            estimate_minutes=dur,
         )
         res = planner.plan(
             plan_date=test_date,
@@ -122,10 +122,11 @@ def run_conflict_benchmark() -> dict[str, Any]:
                     if "action" in alt and "requires_approval" in alt:
                         valid_alternatives_count += 1
 
+    total_scenarios = len(test_durations)
     return {
-        "overloaded_scenarios_tested": 10,
+        "overloaded_scenarios_tested": total_scenarios,
         "conflicts_detected": conflicts_detected,
-        "conflict_detection_rate": conflicts_detected / 10,
+        "conflict_detection_rate": conflicts_detected / total_scenarios,
         "total_alternatives_generated": total_alternatives_checked,
         "alternative_feasibility_rate": (
             valid_alternatives_count / total_alternatives_checked

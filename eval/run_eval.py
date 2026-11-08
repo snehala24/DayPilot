@@ -92,9 +92,7 @@ def run_evaluation(use_gemini: bool = False) -> dict[str, Any]:
 
     for item in dataset:
         note_id = uuid.uuid4()
-        ref_time = datetime.fromisoformat(
-            item["reference_timestamp"].replace("Z", "+00:00")
-        )
+        ref_time = datetime.fromisoformat(item["reference_timestamp"])
         user_tz = item.get("user_timezone", "UTC")
 
         try:
@@ -104,7 +102,7 @@ def run_evaluation(use_gemini: bool = False) -> dict[str, Any]:
                 reference_time=ref_time,
                 user_timezone=user_tz,
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             schema_failures += 1
             print(f"Schema failure on note {item['id']}: {e}")
             continue

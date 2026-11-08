@@ -1,9 +1,9 @@
 {
-  "timestamp": "2026-11-08T12:53:07.010224+00:00",
+  "timestamp": "2026-11-08T13:17:30.214141+00:00",
   "dataset_metadata": {
-    "synthetic_notes_count": 20,
+    "synthetic_notes_count": 21,
     "planning_scenarios_count": 10,
-    "conflict_scenarios_count": 10,
+    "conflict_scenarios_count": 12,
     "safety_unauthorized_attempts": 10,
     "reminders_tested_count": 10
   },

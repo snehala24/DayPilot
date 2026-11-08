@@ -426,5 +426,15 @@
     ],
     "expected_ambiguity_fields": [],
     "expected_questions_count": 0
+  },
+  {
+    "id": 21,
+    "category": "gibberish_or_empty_note",
+    "input_text": "asdfghjk qwertyuiop 12345 ??? Random meaningless string with no tasks or actions.",
+    "reference_timestamp": "2026-11-06T10:00:00Z",
+    "user_timezone": "UTC",
+    "expected_commitments": [],
+    "expected_ambiguity_fields": [],
+    "expected_questions_count": 0
   }
 ]
