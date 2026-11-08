@@ -5,6 +5,18 @@ from typing import Any
 from pydantic import BaseModel, Field, field_validator
 
 
+class SourceSpan(BaseModel):
+    """Explicit typed span in source text for extraction provenance."""
+
+    start_char: int | None = Field(
+        None, description="Start character offset in source text"
+    )
+    end_char: int | None = Field(
+        None, description="End character offset in source text"
+    )
+    text: str | None = Field(None, description="Matched text substring in source text")
+
+
 class ExtractedCommitment(BaseModel):
     """Schema for a commitment candidate extracted from raw text."""
 
@@ -33,7 +45,7 @@ class ExtractedCommitment(BaseModel):
         default_factory=list, description="Titles or references of prerequisite tasks"
     )
     owner: str | None = Field(None, description="Explicit owner/assignee if stated")
-    source_span: dict[str, Any] | None = Field(
+    source_span: SourceSpan | None = Field(
         None, description="Span in raw text: {start_char, end_char, text}"
     )
     confidence: float = Field(

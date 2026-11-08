@@ -6,13 +6,20 @@ from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 from app.config import settings
 
+db_url = settings.DATABASE_URL
+if db_url.startswith("sqlite:///./"):
+    from app.config import BACKEND_DIR
+
+    rel_name = db_url[len("sqlite:///./") :]
+    db_url = f"sqlite:///{(BACKEND_DIR / rel_name).as_posix()}"
+
 # Engine configuration
 connect_args = {}
-if settings.DATABASE_URL.startswith("sqlite"):
+if db_url.startswith("sqlite"):
     connect_args["check_same_thread"] = False
 
 engine = create_engine(
-    settings.DATABASE_URL,
+    db_url,
     connect_args=connect_args,
     echo=settings.DEBUG,
     pool_pre_ping=True,

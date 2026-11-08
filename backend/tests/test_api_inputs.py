@@ -209,3 +209,27 @@ def test_circular_dependency_rejected_in_confirmation(db_session, seeded_db):
         confirm_commitments(payload=cycle_req, db=db_session)
     assert exc_info.value.status_code == 400
     assert "circular dependency" in exc_info.value.detail.lower()
+
+
+def test_submit_raw_input_failed_extraction_raises_502_and_rolls_back_note(
+    db_session, seeded_db
+):
+    """When extraction engine fails, endpoint must return 502 and NOT persist note as successful ingestion."""
+    from app.agent.client import LLMClientError
+
+    failing_client = FakeLLMClient()
+    failing_client.set_failure(LLMClientError("Gemini live API unavailable"))
+
+    req = RawInputRequest(raw_text="Deploy cluster tomorrow morning.")
+    notes_before = db_session.query(Note).count()
+
+    with pytest.raises(HTTPException) as exc_info:
+        submit_raw_input(payload=req, db=db_session, llm_client=failing_client)
+
+    assert exc_info.value.status_code == 502
+    assert "extraction engine failed" in exc_info.value.detail.lower()
+
+    # Note must NOT be persisted in DB
+    notes_after = db_session.query(Note).count()
+    assert notes_after == notes_before
+

@@ -50,7 +50,7 @@ def submit_raw_input(
                 detail=f"Project {project_id} not found.",
             )
 
-    # 3. Persist original raw note for complete provenance
+    # 3. Create original raw note record
     note = Note(
         id=uuid.uuid4(),
         user_id=user.id,
@@ -61,8 +61,7 @@ def submit_raw_input(
         updated_at=utc_now(),
     )
     db.add(note)
-    db.commit()
-    db.refresh(note)
+    db.flush()
 
     # 4. Run extractor
     user_tz = payload.user_timezone or user.timezone or "UTC"
@@ -78,14 +77,13 @@ def submit_raw_input(
             reference_time=utc_now(),
             user_timezone=user_tz,
         )
+        db.commit()
+        db.refresh(note)
         return review
-    except Exception:
+    except Exception as e:
+        db.rollback()
         logger.exception("Extraction failed")
-        # Safe fallback: return empty review tied to the stored note so user can enter manually
-        return ExtractionReview(
-            note_id=note.id,
-            raw_text=payload.raw_text,
-            commitments=[],
-            questions=[],
-            can_confirm_all=False,
-        )
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Extraction engine failed: {e!s}",
+        ) from e

@@ -137,9 +137,13 @@ class GeminiLLMClient(LLMClient):
         try:
             from google.genai import types
 
+            from app.agent.gemini_schema import to_gemini_compatible_schema
+
+            compatible_schema = to_gemini_compatible_schema(response_schema)
+
             config = types.GenerateContentConfig(
                 response_mime_type="application/json",
-                response_schema=response_schema,
+                response_schema=compatible_schema,
                 system_instruction=system_instruction,
                 temperature=0.0,
             )
